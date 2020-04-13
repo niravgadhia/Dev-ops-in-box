@@ -1,0 +1,13 @@
+matrix-auth:2.5
+credentials-binding:1.21
+gitlab:1.5.13
+ldap:1.22
+sonar:2.11
+swarm:3.19
+artifactory:3.6.1
+hubot-steps:2.0.5
+blueocean:1.22.0
+docker-workflow:1.23
+pipeline-utility-steps:2.5.0
+clover:4.11.1
+generic-webhook-trigger:1.67

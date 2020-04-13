@@ -1,0 +1,25 @@
+# config file version
+apiVersion: 1
+
+deleteDatasources:
+  - name: PostgreSQL Readonly
+    orgId: 1
+
+datasources:
+- name: PostgreSQL Readonly
+  type: postgres
+  access: proxy
+  orgId: 1
+  url: grafana-datasource:5432
+  user: grafanareader
+  database: grafana
+  basicAuth: false
+  isDefault: true
+  jsonData:
+    postgresVersion: 906
+    sslmode: disable
+    timescaledb: false
+  secureJsonData:
+    password: password
+  version: 1
+  editable: true

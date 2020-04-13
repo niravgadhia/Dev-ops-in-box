@@ -1,0 +1,5 @@
+.idea
+**/*.DS_Store
+deploy/*/key.*
+deploy/k8s/*.yaml
+deploy/k8s/pv/*.yaml

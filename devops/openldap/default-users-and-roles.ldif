@@ -1,0 +1,155 @@
+# Create the new organizational unit for managing users 
+dn: ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+ou: users
+objectClass: organizationalUnit
+description: Default organizational unit for devops users
+
+# Create devops-system user 
+description: Internal system user for automated DevOps jobs
+dn: cn=devops-system,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: devops-system
+uid: devops-system
+givenName: DevOps
+sn: System
+mail: devops-system@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+# Create devops-admin user
+description: Generic admin user account for access to DevOps applications
+dn: cn=devops-admin,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: devops-admin
+uid: devops-admin
+givenName: DevOps
+sn: Admin
+mail: devops-admin@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+# Create devops-user user
+description: Generic user account for access to DevOps applications
+dn: cn=devops-user,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: devops-user
+uid: devops-user
+givenName: DevOps
+sn: User
+mail: devops-user@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+### BEGIN: create devops personas
+
+# Create Kate
+description: Kate - Product Owner
+dn: cn=kate,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: kate
+uid: kate
+givenName: Kate
+sn: Product-Owner
+mail: kate@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+# Create Lee
+description: Lee - Tech Lead
+dn: cn=lee,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: lee
+uid: lee
+givenName: Lee
+sn: Tech-Lead
+mail: lee@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+# Create Nick
+description: Nick - Developer
+dn: cn=nick,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: nick
+uid: nick
+givenName: Nick
+sn: Developer
+mail: nick@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+# Create Eva
+description: Eva - Designer
+dn: cn=eva,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: eva
+uid: eva
+givenName: Eva
+sn: Designer
+mail: eva@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+# Create Jack
+description: Jack - Security & Risk
+dn: cn=jack,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: jack
+uid: jack
+givenName: Jack
+sn: Risk
+mail: jack@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+# Create Alan
+description: Alan - DevOps
+dn: cn=alan,ou=users,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: inetOrgPerson
+cn: alan
+uid: alan
+givenName: Alan
+sn: DevOps
+mail: alan@local
+userPassword: {{ LDAP_READONLY_USER_PASSWORD_ENCRYPTED }}
+
+### END: devops personas
+
+# Create the new organizational unit for managing roles
+dn: ou=roles,{{ LDAP_BASE_DN }}
+changetype: add
+ou: roles
+objectClass: organizationalUnit
+description: Default organizational unit for devops roles
+
+# Create devops-admin role
+dn: cn=devops-admin,ou=roles,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: groupOfUniqueNames
+cn: devops-admin
+uniqueMember: cn=devops-admin,ou=users,{{ LDAP_BASE_DN }}
+
+# Create devops-system role
+dn: cn=devops-system,ou=roles,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: groupOfUniqueNames
+cn: devops-system
+uniqueMember: cn=devops-system,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=devops-admin,ou=users,{{ LDAP_BASE_DN }}
+
+# Create devops-user role
+dn: cn=devops-user,ou=roles,{{ LDAP_BASE_DN }}
+changetype: add
+objectClass: groupOfUniqueNames
+cn: devops-user
+uniqueMember: cn=devops-user,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=devops-system,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=devops-admin,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=kate,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=lee,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=nick,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=eva,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=jack,ou=users,{{ LDAP_BASE_DN }}
+uniqueMember: cn=alan,ou=users,{{ LDAP_BASE_DN }}

@@ -1,0 +1,4 @@
+FROM us.gcr.io/kpmg-demos/devops-demo-mybank-source
+
+RUN sed -i "s|DEPLOYMENT_SUBFOLDER|mybank|g" /etc/nginx/nginx.conf
+RUN sed -i 's|<base href="/">|<base href="/mybank/">|g' /usr/share/nginx/html/index.html

@@ -1,0 +1,17 @@
+{
+  "name": "grafana_datasource_rest",
+  "version": "0.0.0",
+  "description": "Insert metric data into Grafana Postgres datasource",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "~1.0.1",
+    "cors": "^2.8.5",
+    "express": "^4.16.4",
+    "pg": "^7.7.0",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.4"
+  }
+}

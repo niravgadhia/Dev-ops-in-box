@@ -1,0 +1,372 @@
+version: "3"
+services:
+
+  proxy:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}proxy:${DOCKER_IMAGE_TAG}
+    build: ./proxy
+    environment:
+      NGINX_SERVER_NAME: $DOS_HOSTNAME
+      NGINX_PORT: $NGINX_PORT
+      NGINX_RESOLVER: $NGINX_RESOLVER
+      NGINX_SERVICE_SUFFIX: $NGINX_SERVICE_SUFFIX
+    ports:
+      - 80:80
+      - 443:443
+    labels:
+      kompose.service.type: LoadBalancer
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 20M
+
+  openldap:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}openldap:${DOCKER_IMAGE_TAG}
+    build: ./openldap
+    command: --loglevel debug
+    volumes:
+      - openldap-data:/var/lib/ldap
+      - openldap-config:/etc/ldap/slapd.d
+    environment:
+      LDAP_ORGANISATION: $LDAP_ORGANISATION
+      LDAP_DOMAIN: $LDAP_DOMAIN
+      LDAP_BASE_DN: $LDAP_BASE_DN
+      LDAP_READONLY_USER_PASSWORD: $LDAP_READONLY_USER_PASSWORD
+    ports:
+      - 389
+    deploy:
+      resources:
+        reservations:
+          cpus: '1.5'
+          memory: 100M
+  
+  openldap-admin:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}openldap-admin:${DOCKER_IMAGE_TAG}
+    build: ./openldap-admin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: openldap
+      PHPLDAPADMIN_HTTPS: 'false'
+      PHPLDAPADMIN_SERVER_PATH: /openldap
+    depends_on:
+      - proxy
+      - openldap
+    ports:
+      - 80
+    # healthcheck:
+    #   test: curl --fail http://localhost:80 || exit 1
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+    deploy:
+      resources:
+        reservations:
+          cpus: '1.0'
+          memory: 100M
+
+  smtp:
+    image: namshi/smtp
+    environment:
+      MAILNAME: $DOS_HOSTNAME
+    ports:
+      - 25
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 20M
+
+  
+  register:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}register:${DOCKER_IMAGE_TAG}
+    build: ./register
+    environment:
+      LDAP_BASE_DN: $LDAP_BASE_DN
+      LDAP_PASSWORD: $LDAP_ADMIN_PASSWORD
+    depends_on:
+      - proxy
+      - openldap
+      - smtp
+    ports:
+      - 3000
+    # healthcheck:
+    #   test: curl --fail http://localhost:3000/register || exit 1
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 800M
+
+  jenkins:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}jenkins:${DOCKER_IMAGE_TAG}
+    build: ./jenkins
+    volumes:
+      - jenkins-data:/var/jenkins_home:rw
+    environment:
+      LDAP_BASE_DN: $LDAP_BASE_DN
+      LDAP_READONLY_USER_PASSWORD: $LDAP_READONLY_USER_PASSWORD
+      GITLAB_URL: $DOS_PROTOCOL://$DOS_HOSTNAME/gitlab
+      JENKINS_URL: $DOS_PROTOCOL://$DOS_HOSTNAME/jenkins
+    depends_on:
+      - proxy
+      - openldap
+#      - jenkins-docker-agent
+    ports:
+      - 8080
+      - 50000
+    # healthcheck:
+    #   test: curl --fail http://localhost:8080/jenkins/login || exit 1
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+    deploy:
+      # this placement constraint depends on having a nodepool named jenkins-pool
+      placement:
+        constraints:
+          - node.labels.cloud.google.com/gke-nodepool == jenkins-pool
+      resources:
+        reservations:
+          cpus: '1.0'
+          memory: 1000M
+
+  jenkins-docker-agent:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}jenkins-docker-agent:${DOCKER_IMAGE_TAG}
+    build: ./jenkins-docker-agent
+    environment:
+      JENKINS_AGENT_PASSWORD: $LDAP_SYSTEM_USER_PASSWORD
+    volumes:
+      - jenkins-workspace:/workspace
+      - jenkins-data:/var/jenkins_home:ro
+    # TODO: volume mapping for jenkins workspace share and docker image cache
+    deploy:
+      # this placement constraint depends on having a nodepool named jenkins-pool
+      placement:
+        constraints:
+          - node.labels.cloud.google.com/gke-nodepool == jenkins-pool
+      #mode: replicated
+      #replicas: 2
+      resources:
+        reservations:
+          cpus: '1.0'
+          memory: 500M
+
+  # rocketchat:
+  #   image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}rocketchat:${DOCKER_IMAGE_TAG}
+  #   build: ./rocketchat
+  #   volumes:
+  #     - rocketchat-data:/var/opt/mongodb
+  #   ports:
+  #     - 3000
+  #   environment:
+  #     ROOT_URL: ${DOS_PROTOCOL}://${DOS_HOSTNAME}/rocketchat
+  #     OVERWRITE_SETTING_LDAP_BaseDN: $LDAP_BASE_DN
+  #     OVERWRITE_SETTING_LDAP_Authentication_Password: $LDAP_READONLY_USER_PASSWORD
+  #     OVERWRITE_SETTING_LDAP_Authentication_UserDN: cn=readonly,${LDAP_BASE_DN}
+  #     OVERWRITE_SETTING_LDAP_User_Search_Filter: (memberOf=cn=devops-user,ou=roles,${LDAP_BASE_DN})
+  #   depends_on:
+  #     - openldap
+  #     - proxy
+  #     - rocketchat-database
+  #     - grafana-datasource-rest
+  #   # healthcheck:
+  #   #   test: curl --fail http://localhost:3000/rocketchat/ || exit 1
+  #   #   interval: 1m
+  #   #   timeout: 5s
+  #   #   retries: 5
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         cpus: '1.0'
+  #         memory: 500M
+
+  # rocketchat-database:
+  #   image: mongo:3
+  #   volumes:
+  #     - rocketchat-database-data:/data/db
+  #   command: mongod --smallfiles
+  #   ports:
+  #     - 27017
+  #   # healthcheck:
+  #   #   test: echo 'db.stats().ok' | mongo localhost:27017/zenbrain --quiet
+  #   #   interval: 1m
+  #   #   timeout: 5s
+  #   #   retries: 5
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         cpus: '5.0'
+  #         memory: 200M
+
+  # hubot:
+  #   image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}hubot:${DOCKER_IMAGE_TAG}
+  #   build: ./hubot
+  #   environment:
+  #     ROCKETCHAT_PASSWORD: $LDAP_SYSTEM_USER_PASSWORD
+  #     HUBOT_JENKINS_AUTH: devops-system:$LDAP_SYSTEM_USER_PASSWORD
+  #   depends_on:
+  #     - rocketchat
+  #   volumes:
+  #     - hubot-config:/home/hubot/scripts/config
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         cpus: '0.1'
+  #         memory: 250M
+
+  artifactory:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}artifactory:${DOCKER_IMAGE_TAG}
+    build: ./artifactory
+    volumes:
+      - artifactory-data:/var/opt/jfrog/artifactory
+    ports:
+      - 8081
+    depends_on:
+      - openldap
+      - proxy
+    environment:
+      LDAP_BASE_DN: $LDAP_BASE_DN
+      LDAP_READONLY_USER_PASSWORD: $LDAP_READONLY_USER_PASSWORD
+    # healthcheck:
+    #   test: curl --fail http://localhost:8081/artifactory/api/system/ping || exit 1
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+    deploy:
+      resources:
+        reservations:
+          cpus: '3.5'
+          memory: 1000M
+
+  sonarqube:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}sonarqube:${DOCKER_IMAGE_TAG}
+    build: ./sonarqube
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+    environment:
+      LDAP_BASE_DN: $LDAP_BASE_DN
+      LDAP_READONLY_USER_PASSWORD: $LDAP_READONLY_USER_PASSWORD
+      SONARQUBE_JDBC_PASSWORD: $LDAP_SYSTEM_USER_PASSWORD
+    depends_on:
+      - openldap
+      - sonarqube-database
+      - proxy
+    ports:
+      - 9000
+    # healthcheck:
+    #   test: curl --fail http://localhost:9000/sonarqube/ || exit 1
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+    deploy:
+      resources:
+        reservations:
+          cpus: '2.0'
+          memory: 2000M
+
+  sonarqube-database:
+    image: postgres:9.6
+    volumes:
+      - sonarqube-database-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: $LDAP_SYSTEM_USER_PASSWORD
+      # known issue with volume - creats k8s problem with non-black initial directory on mount
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - 5432
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U postgres"]
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+    deploy:
+      resources:
+        reservations:
+          cpus: '2.0'
+          memory: 50M
+
+  grafana-datasource:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}grafana-datasource:${DOCKER_IMAGE_TAG}
+    build: ./grafana-datasource
+    volumes:
+      - grafana-datasource-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: grafana
+      POSTGRES_PASSWORD: $LDAP_SYSTEM_USER_PASSWORD
+      # known issue with volume - creates k8s problem with non-block initial directory on mount
+      # see: https://docs.docker.com/samples/library/postgres/#pgdata
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - 5432
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U grafana"]
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+
+  grafana:
+    image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}grafana:${DOCKER_IMAGE_TAG}
+    build: ./grafana
+    env_file: ./.env
+    depends_on:
+      - openldap
+      - grafana-datasource
+#      - grafana-datasource-rest
+      - proxy
+    ports:
+      - 3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  # grafana-datasource-rest:
+  #   image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}grafana-datasource-rest:${DOCKER_IMAGE_TAG}
+  #   build: ./grafana-datasource-rest
+  #   environment:
+  #     DB_USER: grafana
+  #     DB_USER_PASSWORD: $LDAP_SYSTEM_USER_PASSWORD
+  #     DB_HOST: grafana-datasource
+  #     DB_NAME: grafana
+  #   depends_on:
+  #     - grafana-datasource
+  #   ports:
+  #     - 8080
+    # healthcheck:
+    #   test: curl --fail http://localhost:8080/alive || exit 1
+    #   interval: 1m
+    #   timeout: 5s
+    #   retries: 5
+
+  # mybank:
+  #   image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}mybank-production:${DOCKER_IMAGE_TAG}
+  #   build: ./mybank-production
+  #   depends_on:
+  #     - openldap
+  #     - proxy    
+  #   ports:
+  #     - 8081
+      
+  # mybank-staging:
+  #   image: ${DOCKER_IMAGE_ACCOUNT}/${DOCKER_IMAGE_PREFIX}mybank-staging:${DOCKER_IMAGE_TAG}
+  #   build: ./mybank-staging
+  #   depends_on:
+  #     - openldap
+  #     - proxy    
+  #   ports:
+  #     - 8081
+
+volumes:
+  openldap-data:
+  openldap-config:
+  jenkins-data:
+  jenkins-workspace:
+  rocketchat-data:
+  rocketchat-database-data:
+  artifactory-data:
+  sonarqube-data:
+  sonarqube-database-data:
+  hubot-config:
+  grafana-datasource-data:
+  grafana-data:
+
